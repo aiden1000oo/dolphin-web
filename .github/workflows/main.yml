@@ -1,0 +1,48 @@
+name: Build Dolphin Emulator for WASM (No fmt, With Submodules, Artifact Upload)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.55 # Use the version you need
+
+      - name: Install additional dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config python3-pip
+      - name: Remove fmt from all CMakeLists.txt
+        run: |
+          find . -name 'CMakeLists.txt' -exec sed -i '/fmt/d' {} +
+      - name: Configure WASM build with Emscripten
+        env:
+          EMCC_CMAKE: emcmake
+        run: |
+          mkdir build-wasm
+          cd build-wasm
+          emcmake cmake .. -DENABLE_GENERIC=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Build Dolphin WASM
+        run: |
+          cd build-wasm
+          emmake make -j$(nproc)
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dolphin-wasm
+          path: |
+            build-wasm/**/*.wasm
+            build-wasm/**/*.js
+            build-wasm/**/*.html
